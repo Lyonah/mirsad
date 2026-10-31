@@ -1,0 +1,12 @@
+{
+  "application": "Mirsad",
+  "delivery_date_saudi": "2026-11-01",
+  "source_commit": "aa9df40b1b931d181698de59399308798c8b5d0d",
+  "published_version": 11,
+  "source_file_count": 154,
+  "live_url": "https://mirsad-support-workspace.loly64270.chatgpt.site/",
+  "credentials_included": false,
+  "production_data_included": false,
+  "dependency_installation_required": true,
+  "ui_update": "i18n-20261101: English/LTR + professional enhancements (frontend only)"
+}

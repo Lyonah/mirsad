@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.next/
+.vinext/
+.wrangler/
+.sites-runtime/
+.env*
+!.env.example
+.dev.vars*
+*.tsbuildinfo
+outputs/
+work/
+
+supabase/.temp/

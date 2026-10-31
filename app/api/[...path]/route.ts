@@ -1,0 +1,15 @@
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { actionInput,ticketInput,manualPriorityInput } from '@/lib/contracts';
+import { publicSettings,authenticate,readJson,sameOrigin,state,supa,classify,AppError } from '@/lib/server';
+export const dynamic='force-dynamic';
+const json=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+async function handle(request:Request){try{const path=new URL(request.url).pathname.replace(/^\/api\//,'');if(request.method==='GET'&&path==='config')return json(await publicSettings());if(request.method==='POST')sameOrigin(request);const {token,user}=await authenticate(request);if(request.method==='GET'&&path==='notifications')return json(await supa('/rest/v1/rpc/notification_feed',token,{}));if(request.method==='GET'&&path==='state')return json({...await state(token,user.id),user});if(request.method!=='POST')return json({error:'NOT_FOUND',message:'الصفحة غير موجودة.'},404);
+ const body=await readJson(request);
+ if(path==='notifications/read'){const v=z.object({id:z.string().uuid().nullable()}).strict().parse(body);await supa('/rest/v1/rpc/read_notifications',token,{p_id:v.id});return json({ok:true})}
+ if(path==='tickets'){const v=ticketInput.parse(body);const result=await supa(v.contact?'/rest/v1/rpc/create_ticket_with_contact':'/rest/v1/rpc/create_ticket',token,{p_title:v.title,p_category:v.category,p_location:v.location,p_description:v.description,p_request:v.requestId,...(v.contact?{p_contact:v.contact}:{})});const ai=result.created?await classify(token,result.id):{state:'unchanged'};return json({...result,classification:ai},result.created?201:200)}
+ const match=path.match(/^tickets\/(\d+)\/(action|classify|priority)$/);if(match){const id=Number(match[1]);if(!Number.isSafeInteger(id)||id<1)throw new AppError('INVALID_INPUT');if(match[2]==='priority'){const v=manualPriorityInput.parse(body);await supa('/rest/v1/rpc/set_review_priority',token,{p_ticket:id,p_priority:v.priority,p_reason:v.reason});return json({ok:true})}if(match[2]==='classify'){z.object({}).strict().parse(body);return json(await classify(token,id))}const v=actionInput.parse(body);const {action,...data}=v;return json(await supa('/rest/v1/rpc/ticket_action',token,{p_action:action,p_ticket:id,p_data:data}))}
+ if(path==='technicians/review'){const v=z.object({profileId:z.string().uuid(),approve:z.boolean()}).strict().parse(body);await supa('/rest/v1/rpc/review_technician',token,{p_profile:v.profileId,p_approve:v.approve});return json({ok:true})}
+ return json({error:'NOT_FOUND',message:'الصفحة غير موجودة.'},404);
+ }catch(e){if(e instanceof z.ZodError)return json({error:'INVALID_INPUT',message:'تحقق من الحقول المطلوبة وطول النص.'},400);if(e instanceof AppError)return json({error:e.code,message:e.message},e.status);return json({error:'SERVICE_UNAVAILABLE',message:'تعذّر الاتصال بالخدمة. بياناتك المُرسلة لن تُستبدل بنتيجة تجريبية.'},503)}}
+export const GET=handle;export const POST=handle;
