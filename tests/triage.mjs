@@ -4,8 +4,8 @@ import {pathToFileURL} from 'node:url';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
 fs.mkdirSync('work/triage',{recursive:true});
-for(const name of ['triage','handler']){
- const source=fs.readFileSync(`supabase/functions/mirsad-triage/${name}.ts`,'utf8').replace("'./triage.ts'","'./triage.mjs'");
+for(const name of ['triage','handler','body']){
+ const source=fs.readFileSync(`supabase/functions/mirsad-triage/${name}.ts`,'utf8').replace("'./triage.ts'","'./triage.mjs'").replace("'./body.ts'","'./body.mjs'");
  fs.writeFileSync(`work/triage/${name}.mjs`,ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText);
 }
 const {createHandler,upstreamFailure}=await import(pathToFileURL(path.resolve('work/triage/handler.mjs')));
@@ -28,6 +28,11 @@ function fixture({authStatus=200,rpcError,aiStatus=200,aiBody=completed(valid),c
  };return {calls,handle:createHandler(config,send)};
 }
 let checks=0;
+{const f=fixture();let sent=0,cancelled=false;
+ const body=new ReadableStream({pull(c){sent+=128;c.enqueue(new Uint8Array(128))},cancel(){cancelled=true}},{highWaterMark:0});
+ const r=await f.handle(new Request('https://function.example/mirsad-triage',{method:'POST',headers:{Authorization:'Bearer user-token','Content-Type':'application/json'},duplex:'half',body}));
+ assert.equal(r.status,413);assert.ok(cancelled);assert.equal(sent,384);assert.equal(f.calls.length,1);checks++;
+}
 {const f=fixture();const r=await f.handle(post({},''));assert.equal(r.status,401);assert.equal(f.calls.length,0);checks++}
 {const f=fixture({authStatus:401});const r=await f.handle(post());assert.equal(r.status,401);assert.equal(f.calls.length,1);checks++}
 for(const body of [{ticketId:1,priority:'high'},{ticketId:0},{ticketId:1.2},{ticketId:'1'},null]){

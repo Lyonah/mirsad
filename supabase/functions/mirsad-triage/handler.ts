@@ -1,4 +1,5 @@
 import { modelRequest, parseModelResponse } from './triage.ts';
+import { boundedText,BodyLimitError } from './body.ts';
 
 export type Config = { url:string; anon:string; service:string; key:string; model:string };
 class ServiceError extends Error {
@@ -47,7 +48,7 @@ export function createHandler(c:Config,send:typeof fetch=fetch,wait=(ms:number)=
    const user=await supa('/auth/v1/user',token);
    if(!user?.id)throw new ServiceError('AUTH_REQUIRED',401);
    if(!req.headers.get('Content-Type')?.includes('application/json')||Number(req.headers.get('Content-Length')||0)>256)throw new ServiceError('INVALID_INPUT',400);
-   const text=await req.text();if(new TextEncoder().encode(text).length>256)throw new ServiceError('INVALID_INPUT',400);
+   let text:string;try{text=await boundedText(req,256)}catch(e){if(e instanceof BodyLimitError)throw new ServiceError('INVALID_INPUT',e.status);throw e}
    let input;try{input=JSON.parse(text)}catch{throw new ServiceError('INVALID_INPUT',400)}
    if(!input||Array.isArray(input)||Object.keys(input).length!==1||!Number.isSafeInteger(input.ticketId)||input.ticketId<1)throw new ServiceError('INVALID_INPUT',400);
    if(!c.key||!c.service){await supa('/rest/v1/rpc/mark_triage_review',token,{p_ticket:input.ticketId,p_reason:'not_configured'});return json({state:'needs_review',warning:'البلاغ محفوظ. الأولوية بانتظار مراجعة فني معتمد.'});}

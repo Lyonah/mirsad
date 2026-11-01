@@ -15,7 +15,7 @@ Configure the following runtime variables through the hosting environment, not c
 
 AI runs in `supabase/functions/mirsad-triage`. Set `GROQ_API_KEY` in the selected Supabase project's Edge Function Secrets dashboard; `GROQ_MODEL` is optional (default `openai/gpt-oss-120b`). Supabase injects its own server-side service-role key. Neither secret needs to be copied to Sites.
 
-Deploy the four function files with `verify_jwt=false`: the handler explicitly verifies every classification caller using Auth `/user`, then invokes the authorization/rate-limit RPC under that user's JWT. This also permits a public `/health` endpoint that reports readiness only. Health uses a cached, read-only Groq model access check; it never makes a paid generation request and does not prove billing quota. No CORS policy enables browser access; the Site calls the function from its server.
+Deploy all five function files (including `body.ts`) with `verify_jwt=false`: the handler explicitly verifies every classification caller using Auth `/user`, then invokes the authorization/rate-limit RPC under that user's JWT. This also permits a public `/health` endpoint that reports readiness only. Health uses a cached, read-only Groq model access check; it never makes a paid generation request and does not prove billing quota. No CORS policy enables browser access; the Site calls the function from its server.
 
 No real credentials belong in Git, logs, prompts, browser source or `.openai/hosting.json`. `.env.example` contains names only.
 
@@ -61,6 +61,7 @@ Checks:
 node tests/database.mjs
 node tests/contracts.mjs
 node tests/triage.mjs
+node tests/request-body.mjs
 node node_modules/typescript/bin/tsc --noEmit
 node --check public/mirsad.js
 ```
@@ -68,6 +69,10 @@ node --check public/mirsad.js
 Database tests run the real migration in embedded Postgres with Supabase auth-role fixtures. They verify privilege boundaries, RLS, number allocation/idempotency, role approval, task/closing rules, handover decisions and isolation of AI-result writes. Fixtures are test-only, never deployed to production.
 
 ## End-to-end verification after connection
+
+Request bodies are read with an incremental byte limit (16,000 bytes for the Site API and 256 bytes for triage) and a 10-second read deadline. Oversized streams are cancelled before they can be buffered in full.
+
+Enable leaked-password protection in Supabase Auth when the organization has Pro or above. The connected Free organization cannot enable this feature; the application must not claim that it is active. This setting is enforced by Supabase Auth rather than browser validation.
 
 - Register/verify the owner's account; confirm sign-in and recovery.
 - Promote the verified owner to admin and approve two separately registered technicians.
